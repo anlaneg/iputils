@@ -168,6 +168,7 @@ struct ping_rts {
 	volatile int status_snapshot;
 	int confirm;
 	int confirm_flag;
+	/*用户指定的设备名称*/
 	char *device;
 	int pmtudisc;
 

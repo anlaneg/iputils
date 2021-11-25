@@ -68,6 +68,7 @@ struct icmp_filter {
 #endif
 
 ping_func_set_st ping4_func_set = {
+        //ipv4 ping报文构造
 	.send_probe = ping4_send_probe,
 	.receive_error_msg = ping4_receive_error_msg,
 	.parse_reply = ping4_parse_reply,
@@ -385,6 +386,7 @@ main(int argc, char **argv)
 		case 'I':
 			/* IPv6 */
 			if (strchr(optarg, ':')) {
+			    //如果参数中有':'，按ipv6地址解析
 				char *p, *addr = strdup(optarg);
 
 				if (!addr)
@@ -403,8 +405,10 @@ main(int argc, char **argv)
 
 				free(addr);
 			} else if (inet_pton(AF_INET, optarg, &rts.source.sin_addr) > 0) {
+			    //参数给定的是ipv4地址
 				rts.opt_strictsource = 1;
 			} else {
+			    //指定了设备名称
 				rts.device = optarg;
 			}
 			break;
@@ -505,12 +509,15 @@ main(int argc, char **argv)
 
 	iputils_srand();
 
+	/*提取目的地址*/
 	target = argv[argc - 1];
 
+	/*申请要发送出去的buffer*/
 	rts.outpack = malloc(rts.datalen + 28);
 	if (!rts.outpack)
 		error(2, errno, _("memory allocation failed"));
 	if (outpack_fill) {
+	    /*用户指定了填充，按用户填充设置*/
 		fill(&rts, outpack_fill, rts.outpack, rts.datalen);
 		free(outpack_fill);
 	}
@@ -518,6 +525,7 @@ main(int argc, char **argv)
 	/* Create sockets */
 	enable_capability_raw();
 	if (hints.ai_family != AF_INET6)
+	    /*创建AF_INET*/
 		create_socket(&rts, &sock4, AF_INET, hints.ai_socktype, IPPROTO_ICMP,
 			      hints.ai_family == AF_INET);
 	if (hints.ai_family != AF_INET) {
@@ -540,6 +548,7 @@ main(int argc, char **argv)
 
 	/* Set socket options */
 	if (rts.settos)
+	    /*tos设置*/
 		set_socket_option(&sock4, IPPROTO_IP, IP_TOS, &rts.settos, sizeof rts.settos);
 	if (rts.tclass)
 		set_socket_option(&sock6, IPPROTO_IPV6, IPV6_TCLASS, &rts.tclass, sizeof rts.tclass);
@@ -548,6 +557,7 @@ main(int argc, char **argv)
 	if (ret_val)
 		error(2, 0, "%s: %s", target, gai_strerror(ret_val));
 
+	//针对获取到的每个地址，执行pingX_run
 	for (ai = result; ai; ai = ai->ai_next) {
 		switch (ai->ai_family) {
 		case AF_INET:
@@ -599,6 +609,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			rts->opt_sourceroute = 1;
 		}
 	}
+
 	while (argc > 0) {
 		target = *argv;
 
@@ -635,6 +646,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		argv++;
 	}
 
+	//当源ip未指定时，创建socket
 	if (rts->source.sin_addr.s_addr == 0) {
 		socklen_t alen;
 		struct sockaddr_in dst = rts->whereto;
@@ -643,6 +655,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		if (probe_fd < 0)
 			error(2, errno, "socket");
 		if (rts->device) {
+		    //用户指定的设备，绑定到对应设备
 			struct ifreq ifr;
 			int i;
 			int fds[2] = {probe_fd, sock->fd};
@@ -677,6 +690,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			}
 		}
 
+		//设置报文tos
 		if (rts->settos &&
 		    setsockopt(probe_fd, IPPROTO_IP, IP_TOS, (char *)&rts->settos, sizeof(int)) < 0)
 			error(0, errno, _("warning: QOS sockopts"));
@@ -1410,6 +1424,7 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	int cc;
 	int i;
 
+	//构造icmp报文（echo request)
 	icp = (struct icmphdr *)packet;
 	icp->type = ICMP_ECHO;
 	icp->code = 0;
@@ -1420,6 +1435,7 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	rcvd_clear(rts, rts->ntransmitted + 1);
 
 	if (rts->timing) {
+	    /*如果需要记录latency,则添加时间*/
 		if (rts->opt_latency) {
 			struct timeval tmp_tv;
 			gettimeofday(&tmp_tv, NULL);
@@ -1441,6 +1457,7 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 		icp->checksum = in_cksum((unsigned short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
 	}
 
+	/*通过socket发送报文到kernel*/
 	i = sendto(sock->fd, icp, cc, 0, (struct sockaddr *)&rts->whereto, sizeof(rts->whereto));
 
 	return (cc == i ? 0 : i);
