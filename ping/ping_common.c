@@ -192,7 +192,7 @@ void drop_capabilities(void)
 /* Fills all the outpack, excluding ICMP header, but _including_
  * timestamp area with supplied pattern.
  */
-void fill(struct ping_rts *rts, char *patp, unsigned char *packet, size_t packet_size)
+void fill(struct ping_rts *rts, char *patp/*用户指定的内容*/, unsigned char *packet, size_t packet_size)
 {
 	int ii, jj;
 	unsigned int pat[16];
@@ -205,8 +205,11 @@ void fill(struct ping_rts *rts, char *patp, unsigned char *packet, size_t packet
 
 	for (cp = patp; *cp; cp++) {
 		if (!isxdigit(*cp))
+			/*必须以16进制数字格式指定*/
 			error(2, 0, _("patterns must be specified as hex digits: %s"), cp);
 	}
+
+	/*尝试读取16个字节*/
 	ii = sscanf(patp,
 		    "%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x",
 		    &pat[0], &pat[1], &pat[2], &pat[3], &pat[4], &pat[5],
@@ -215,12 +218,16 @@ void fill(struct ping_rts *rts, char *patp, unsigned char *packet, size_t packet
 
 	if (ii > 0) {
 		size_t kk;
+		/*给定的内容过大，max置为0，否则max为缺的字节数*/
 		size_t max = packet_size < (size_t)(8 + ii) ? 0 : packet_size - (8 + ii);
 
+		/*给定的字节不足时，执行重复填充*/
 		for (kk = 0; kk <= max; kk += ii)
 			for (jj = 0; jj < ii; ++jj)
 				bp[jj + kk] = pat[jj];
 	}
+
+	/*非quiet模式，显示填充的样式*/
 	if (!rts->opt_quiet) {
 		printf(_("PATTERN: 0x"));
 		for (jj = 0; jj < ii; ++jj)
@@ -711,6 +718,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 
 			/* See? ... someone runs another ping on this host. */
 			if (not_ours && sock->socktype == SOCK_RAW)
+				/*针对raw格式，需要安装bpf filter,以防止收到其它ping的报文*/
 				fset->install_filter(rts, sock);
 
 			/* If nothing is in flight, "break" returns us to pinger. */

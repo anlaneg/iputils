@@ -14,7 +14,7 @@
 #ifdef HAVE_ERROR_H
 # include <error.h>
 #else
-void error(int status, int errnum, const char *format, ...)
+void error(int status/*退出码*/, int errnum, const char *format, ...)
 {
 	va_list ap;
 
@@ -64,6 +64,7 @@ void close_stdout(void)
 		_exit(EXIT_FAILURE);
 }
 
+/*将字符串转换为数字*/
 long strtol_or_err(char const *const str, char const *const errmesg,
 		   const long min, const long max)
 {
@@ -76,6 +77,8 @@ long strtol_or_err(char const *const str, char const *const errmesg,
 	num = strtol(str, &end, 10);
 	if (errno || str == end || (end && *end))
 		goto err;
+
+	/*执行范围检查*/
 	if (num < min || max < num)
 		error(EXIT_FAILURE, 0, "%s: '%s': out of range: %lu <= value <= %lu",
 		      errmesg, str,  min, max);

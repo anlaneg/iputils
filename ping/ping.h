@@ -102,7 +102,7 @@ struct rcvd_table {
 
 typedef struct socket_st {
 	int fd;
-	int socktype;
+	int socktype;/*使用的socket类型*/
 } socket_st;
 
 struct ping_rts;
@@ -122,7 +122,7 @@ typedef struct ping_func_set_st {
 
 /* Node Information query */
 struct ping_ni {
-	int query;
+	int query;/*查询方式，例如IPUTILS_NI_QTYPE_DNSNAME*/
 	int flag;
 	void *subject;
 	int subject_len;
@@ -140,7 +140,7 @@ struct ping_ni {
 
 /*ping runtime state */
 struct ping_rts {
-	int mark;
+	int mark;/*发送报文的mark*/
 	unsigned char *outpack;
 
 	struct rcvd_table rcvd_tbl;
@@ -153,12 +153,14 @@ struct ping_rts {
 	int sndbuf;
 	int ttl;
 
+	/*要发送的报文总数*/
 	long npackets;			/* max packets to transmit */
 	long nreceived;			/* # of packets we got back */
 	long nrepeats;			/* number of duplicates */
 	long ntransmitted;		/* sequence # for outbound packets = #sent */
 	long nchecksum;			/* replies with bad checksum */
 	long nerrors;			/* icmp errors */
+	/*发包间隔*/
 	int interval;			/* interval between packets (msec) */
 	int preload;
 	int deadline;			/* time to die */
@@ -190,7 +192,7 @@ struct ping_rts {
 	ping_func_set_st ping6_func_set;
 	uint32_t tclass;
 	uint32_t flowlabel;
-	struct sockaddr_in6 source6;
+	struct sockaddr_in6 source6;/*ping采用的源地址v6*/
 	struct sockaddr_in6 whereto6;
 	struct sockaddr_in6 firsthop6;
 
@@ -200,10 +202,11 @@ struct ping_rts {
 	uint32_t route[10];
 	struct sockaddr_in whereto;	/* who to ping */
 	int optlen;
+	/*tos设置*/
 	int settos;			/* Set TOS, Precedence or other QOS options */
 	int broadcast_pings;
 	int multicast;
-	struct sockaddr_in source;
+	struct sockaddr_in source;/*ping采用的源地址v4*/
 
 	/* Used only in ping_common.c */
 	int screen_width;
@@ -225,7 +228,7 @@ struct ping_rts {
 		opt_flood:1,
 		opt_flood_poll:1,
 		opt_flowinfo:1,
-		opt_interval:1,
+		opt_interval:1,/*开启发包间隔*/
 		opt_latency:1,
 		opt_mark:1,
 		opt_noloop:1,
@@ -233,7 +236,7 @@ struct ping_rts {
 		opt_outstanding:1,
 		opt_pingfilled:1,
 		opt_ptimeofday:1,
-		opt_quiet:1,
+		opt_quiet:1,/*是否指明quiet*/
 		opt_rroute:1,
 		opt_so_debug:1,
 		opt_so_dontroute:1,

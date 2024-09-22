@@ -68,10 +68,11 @@ struct icmp_filter {
 #endif
 
 ping_func_set_st ping4_func_set = {
-        //ipv4 ping报文构造
+	//ipv4 ping报文构造
 	.send_probe = ping4_send_probe,
 	.receive_error_msg = ping4_receive_error_msg,
 	.parse_reply = ping4_parse_reply,
+	/*添加filter*/
 	.install_filter = ping4_install_filter
 };
 
@@ -80,6 +81,7 @@ ping_func_set_st ping4_func_set = {
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
 
+/*创建socket*/
 static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 			  int socktype, int protocol, int requisite)
 {
@@ -88,6 +90,7 @@ static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 	errno = 0;
 
 	assert(sock->fd == -1);
+	/*此函数只支持以下两种socket type*/
 	assert(socktype == SOCK_DGRAM || socktype == SOCK_RAW);
 
 	/* Attempt to create a ping socket if requested. Attempt to create a raw
@@ -129,6 +132,7 @@ static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 	 * [2] https://github.com/iputils/iputils/issues/129
 	 */
 	if (socktype == SOCK_DGRAM)
+		/*按dgram创建icmp socket fd*/
 		sock->fd = socket(family, socktype, protocol);
 
 	/* Kernel doesn't support ping sockets. */
@@ -141,11 +145,13 @@ static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 	if (sock->fd == -1 && errno == EACCES)
 		do_fallback = 1;
 
+	/*回退到raw格式的socket*/
 	if (socktype == SOCK_RAW || do_fallback) {
 		socktype = SOCK_RAW;
 		sock->fd = socket(family, SOCK_RAW, protocol);
 	}
 
+	/*创建socket失败，报错*/
 	if (sock->fd == -1) {
 		/* Report error related to disabled IPv6 only when IPv6 also failed or in
 		 * verbose mode. Report other errors always.
@@ -212,15 +218,18 @@ static int parseflow(char *str)
 
 	/* handle both hex and decimal values */
 	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+		/*按16进制解析*/
 		cp = str + 2;
 		val = (int)strtoul(cp, &ep, 16);
 	} else
+		/*按10进制解析*/
 		val = (int)strtoul(str, &ep, 10);
 
 	/* doesn't look like decimal or hex, eh? */
 	if (*ep != '\0')
 		error(2, 0, _("bad value for flowinfo: %s"), str);
 
+	/*给定的数值超过20bits,报错*/
 	if (val & ~IPV6_FLOWINFO_FLOWLABEL)
 		error(2, 0, _("flow value is greater than 20 bits: %s"), str);
 	return (val);
@@ -255,7 +264,7 @@ main(int argc, char **argv)
 	struct addrinfo hints = {
 		.ai_family = AF_UNSPEC,
 		.ai_protocol = IPPROTO_UDP,
-		.ai_socktype = SOCK_DGRAM,
+		.ai_socktype = SOCK_DGRAM,/*默认采用dgram*/
 		.ai_flags = getaddrinfo_flags
 	};
 	struct addrinfo *result, *ai;
@@ -264,6 +273,7 @@ main(int argc, char **argv)
 	socket_st sock4 = { .fd = -1 };
 	socket_st sock6 = { .fd = -1 };
 	char *target;
+	/*ping负载中要填充的内容*/
 	char *outpack_fill = NULL;
 	struct ping_rts rts = {
 		.interval = 1000,
@@ -315,7 +325,7 @@ main(int argc, char **argv)
 		case '4':
 			if (hints.ai_family == AF_INET6)
 				error(2, 0, _("only one -4 or -6 option may be specified"));
-			hints.ai_family = AF_INET;
+			hints.ai_family = AF_INET;/*采用ipv4*/
 			break;
 		case 'b':
 			rts.broadcast_pings = 1;
@@ -342,16 +352,17 @@ main(int argc, char **argv)
 		case '6':
 			if (hints.ai_family == AF_INET)
 				error(2, 0, _("only one -4 or -6 option may be specified"));
-			hints.ai_family = AF_INET6;
+			hints.ai_family = AF_INET6;/*采用ipv6*/
 			break;
 		case 'F':
-			rts.flowlabel = parseflow(optarg);
+			rts.flowlabel = parseflow(optarg);/*指定flowlabel*/
 			rts.opt_flowinfo = 1;
 			break;
 		case 'N':
+			/*解析指定的query type*/
 			if (niquery_option_handler(&rts.ni, optarg) < 0)
 				usage();
-			hints.ai_socktype = SOCK_RAW;
+			hints.ai_socktype = SOCK_RAW;/*采用raw socket*/
 			break;
 		/* Common options */
 		case 'a':
@@ -364,6 +375,7 @@ main(int argc, char **argv)
 			rts.opt_sourceroute = 1;
 			break;
 		case 'c':
+			/*解析需要发送多少报文*/
 			rts.npackets = strtol_or_err(optarg, _("invalid argument"), 1, LONG_MAX);
 			break;
 		case 'd':
@@ -374,6 +386,7 @@ main(int argc, char **argv)
 			break;
 		case 'i':
 		{
+			/*指定发送间隔*/
 			double optval;
 
 			optval = ping_strtod(optarg, _("bad timing interval"));
@@ -386,7 +399,7 @@ main(int argc, char **argv)
 		case 'I':
 			/* IPv6 */
 			if (strchr(optarg, ':')) {
-			    //如果参数中有':'，按ipv6地址解析
+			    //如果参数中有':'，将参数按ipv6地址解析
 				char *p, *addr = strdup(optarg);
 
 				if (!addr)
@@ -447,6 +460,7 @@ main(int argc, char **argv)
 			setbuf(stdout, (char *)NULL);
 			break;
 		case 'p':
+			/*用户指定了填充的内容*/
 			rts.opt_pingfilled = 1;
 			outpack_fill = strdup(optarg);
 			if (!outpack_fill)
@@ -463,12 +477,15 @@ main(int argc, char **argv)
 			rts.opt_so_dontroute = 1;
 			break;
 		case 's':
+			/*指定data长度*/
 			rts.datalen = strtol_or_err(optarg, _("invalid argument"), 0, INT_MAX);
 			break;
 		case 'S':
+			/*指定send buffer长度*/
 			rts.sndbuf = strtol_or_err(optarg, _("invalid argument"), 1, INT_MAX);
 			break;
 		case 't':
+			/*指定ttl*/
 			rts.ttl = strtol_or_err(optarg, _("invalid argument"), 0, 255);
 			rts.opt_ttl = 1;
 			break;
@@ -504,6 +521,7 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	/*参数不得为0*/
 	if (!argc)
 		error(1, EDESTADDRREQ, "usage error");
 
@@ -512,12 +530,12 @@ main(int argc, char **argv)
 	/*提取目的地址*/
 	target = argv[argc - 1];
 
-	/*申请要发送出去的buffer*/
+	/*申请要发送报文用的buffer*/
 	rts.outpack = malloc(rts.datalen + 28);
 	if (!rts.outpack)
 		error(2, errno, _("memory allocation failed"));
 	if (outpack_fill) {
-	    /*用户指定了填充，按用户填充设置*/
+	    /*用户指定了填充，按用户要求设置datalen*/
 		fill(&rts, outpack_fill, rts.outpack, rts.datalen);
 		free(outpack_fill);
 	}
@@ -525,10 +543,11 @@ main(int argc, char **argv)
 	/* Create sockets */
 	enable_capability_raw();
 	if (hints.ai_family != AF_INET6)
-	    /*创建AF_INET*/
+	    /*采用ipv4,创建AF_INET*/
 		create_socket(&rts, &sock4, AF_INET, hints.ai_socktype, IPPROTO_ICMP,
 			      hints.ai_family == AF_INET);
 	if (hints.ai_family != AF_INET) {
+		/*采用ipv6,创建AF_INET6*/
 		create_socket(&rts, &sock6, AF_INET6, hints.ai_socktype, IPPROTO_ICMPV6, sock4.fd == -1);
 		/* This may not be needed if both protocol versions always had the same value, but
 		 * since I don't know that, it's better to be safe than sorry. */
@@ -540,6 +559,7 @@ main(int argc, char **argv)
 
 	/* Limit address family on single-protocol systems */
 	if (hints.ai_family == AF_UNSPEC) {
+		/*通过检查socket确定使用的协议族*/
 		if (sock4.fd == -1)
 			hints.ai_family = AF_INET6;
 		else if (sock6.fd == -1)
@@ -551,8 +571,10 @@ main(int argc, char **argv)
 	    /*tos设置*/
 		set_socket_option(&sock4, IPPROTO_IP, IP_TOS, &rts.settos, sizeof rts.settos);
 	if (rts.tclass)
+		/*tclass设置*/
 		set_socket_option(&sock6, IPPROTO_IPV6, IPV6_TCLASS, &rts.tclass, sizeof rts.tclass);
 
+	/*获取target对应的地址*/
 	ret_val = getaddrinfo(target, NULL, &hints, &result);
 	if (ret_val)
 		error(2, 0, "%s: %s", target, gai_strerror(ret_val));
@@ -561,9 +583,11 @@ main(int argc, char **argv)
 	for (ai = result; ai; ai = ai->ai_next) {
 		switch (ai->ai_family) {
 		case AF_INET:
+			/*运行ping4*/
 			ret_val = ping4_run(&rts, argc, argv, ai, &sock4);
 			break;
 		case AF_INET6:
+			/*运行ping6*/
 			ret_val = ping6_run(&rts, argc, argv, ai, &sock6);
 			break;
 		default:
@@ -581,7 +605,7 @@ main(int argc, char **argv)
 }
 
 int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
-	      socket_st *sock)
+	      socket_st *sock/*入参，对应的ipv4 socket*/)
 {
 	static const struct addrinfo hints = {
 		.ai_family = AF_INET,
@@ -596,6 +620,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 	uint32_t *tmp_rspace;
 
 	if (argc > 1) {
+		/*地址数量过多，显示用法*/
 		if (rts->opt_rroute)
 			usage();
 		else if (rts->opt_timestamp) {
@@ -616,6 +641,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		memset((char *)&rts->whereto, 0, sizeof(rts->whereto));
 		rts->whereto.sin_family = AF_INET;
 		if (inet_aton(target, &rts->whereto.sin_addr) == 1) {
+			/*转换target为目标地址*/
 			rts->hostname = target;
 			if (argc == 1)
 				rts->opt_numeric = 1;
@@ -625,6 +651,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			int ret_val;
 
 			if (argc > 1 || !tmp_ai) {
+				/*解析target对应的地址*/
 				ret_val = getaddrinfo(target, NULL, &hints, &result);
 				if (ret_val)
 					error(2, 0, "%s: %s", target, gai_strerror(ret_val));
@@ -669,6 +696,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 				int errno_save;
 
 				enable_capability_raw();
+				/*指定socket绑定到目标设备*/
 				rc = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 						rts->device, strlen(rts->device) + 1);
 				errno_save = errno;
@@ -695,10 +723,12 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		    setsockopt(probe_fd, IPPROTO_IP, IP_TOS, (char *)&rts->settos, sizeof(int)) < 0)
 			error(0, errno, _("warning: QOS sockopts"));
 
+		/*连接到rts->route[0]的1025端口*/
 		dst.sin_port = htons(1025);
 		if (rts->nroute)
 			dst.sin_addr.s_addr = rts->route[0];
 		if (connect(probe_fd, (struct sockaddr *)&dst, sizeof(dst)) == -1) {
+			/*连接失败，退出*/
 			if (errno == EACCES) {
 				if (rts->broadcast_pings == 0)
 					error(2, 0,
@@ -712,6 +742,8 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			} else
 				error(2, errno, "connect");
 		}
+
+		/*尝试获取源地址*/
 		alen = sizeof(rts->source);
 		if (getsockname(probe_fd, (struct sockaddr *)&rts->source, &alen) == -1)
 			error(2, errno, "getsockname");
@@ -721,16 +753,19 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			struct ifaddrs *ifa0, *ifa;
 			int ret;
 
+			/*取接口地址列表*/
 			ret = getifaddrs(&ifa0);
 			if (ret)
 				error(2, errno, _("gatifaddrs failed"));
 			for (ifa = ifa0; ifa; ifa = ifa->ifa_next) {
 				if (!ifa->ifa_name || !ifa->ifa_addr ||
 				    ifa->ifa_addr->sa_family != AF_INET)
+					/*跳过非af_inet*/
 					continue;
 				if (!strcmp(ifa->ifa_name, rts->device) &&
 				    !memcmp(&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
 					    &rts->source.sin_addr, sizeof(rts->source.sin_addr)))
+					/*确认设备名称与地址均匹配的情况*/
 					break;
 			}
 			if (ifa && !memcmp(&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
@@ -906,6 +941,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			error(2, errno, _("cannot set unicast time-to-live"));
 	}
 
+	/*报文内容足够我们传递时间，标记timing=1*/
 	if (rts->datalen >= (int)sizeof(struct timeval))	/* can we time transfer */
 		rts->timing = 1;
 	packlen = rts->datalen + MAXIPLEN + MAXICMPLEN;
@@ -1435,7 +1471,7 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	rcvd_clear(rts, rts->ntransmitted + 1);
 
 	if (rts->timing) {
-	    /*如果需要记录latency,则添加时间*/
+	    /*如果需要记录latency,则添加时间到ping负载中*/
 		if (rts->opt_latency) {
 			struct timeval tmp_tv;
 			gettimeofday(&tmp_tv, NULL);
@@ -1496,6 +1532,7 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 	/* Check the IP header */
 	ip = (struct iphdr *)buf;
 	if (sock->socktype == SOCK_RAW) {
+		/*raw socket时，提供的报文包含ip头*/
 		hlen = ip->ihl * 4;
 		if (cc < hlen + 8 || ip->ihl < 5) {
 			if (rts->opt_verbose)
@@ -1685,6 +1722,7 @@ void ping4_install_filter(struct ping_rts *rts, socket_st *sock)
 	/* Patch bpflet for current identifier. */
 	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, htons(rts->ident), 0, 1);
 
+	/*向此socket添加filter*/
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		error(0, errno, _("WARNING: failed to install socket filter"));
 }

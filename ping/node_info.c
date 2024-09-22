@@ -37,10 +37,10 @@
 #include "ping.h"
 
 struct niquery_option {
-	char *name;
-	int namelen;
-	int has_arg;
-	int data;
+	char *name;/*名称*/
+	int namelen;/*名称长度*/
+	int has_arg;/*是否有参数*/
+	int data;/**/
 	int (*handler)(struct ping_ni *ni, int index, const char *arg);
 };
 
@@ -162,9 +162,11 @@ int niquery_check_nonce(struct ping_ni *ni, uint8_t *nonce)
 static int niquery_set_qtype(struct ping_ni *ni, int type)
 {
 	if (niquery_is_enabled(ni) && ni->query != type) {
+		/*如果ni已设置，则检查是否重复且异常设置*/
 		printf(_("Qtype conflict\n"));
 		return -1;
 	}
+	/*设置query type*/
 	ni->query = type;
 	return 0;
 }
@@ -424,21 +426,29 @@ int niquery_option_handler(struct ping_ni *ni, const char *opt_arg)
 	int ret = -1;
 	for (i = 0, p = niquery_options; p->name; i++, p++) {
 		if (strncmp(p->name, opt_arg, p->namelen))
+			/*名称不匹配，忽略*/
 			continue;
+
+		/*基本匹配成功*/
 		if (!p->has_arg) {
+			/*不需要参数*/
 			if (opt_arg[p->namelen] == '\0') {
+				/*完全匹配，执行handler*/
 				ret = p->handler(ni, i, NULL);
 				if (ret >= 0)
 					break;
 			}
 		} else {
+			/*需要参数*/
 			if (opt_arg[p->namelen] == '=') {
+				/*完全匹配，执行handler*/
 				ret = p->handler(ni, i, &opt_arg[p->namelen] + 1);
 				if (ret >= 0)
 					break;
 			}
 		}
 	}
+	/*遍历到niquery_options结尾，没有找到匹配的，显示帮助信息*/
 	if (!p->name)
 		ret = niquery_option_help_handler(ni, 0, NULL);
 	return ret;
