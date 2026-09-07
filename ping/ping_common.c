@@ -529,7 +529,7 @@ void setup(struct ping_rts *rts, socket_st *sock)
 	}
 
 	if (sock->socktype == SOCK_RAW)
-		rts->ident = rand() & 0xFFFF;
+		rts->ident = rand() & 0xFFFF;/*随机生成一个id*/
 
 	set_signal(SIGINT, sigexit);
 	set_signal(SIGALRM, sigexit);

@@ -1720,7 +1720,7 @@ void ping4_install_filter(struct ping_rts *rts, socket_st *sock)
 	once = 1;
 
 	/* Patch bpflet for current identifier. */
-	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, htons(rts->ident), 0, 1);
+	insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, htons(rts->ident)/*当前id*/, 0, 1);
 
 	/*向此socket添加filter*/
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
